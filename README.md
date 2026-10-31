@@ -32,7 +32,7 @@
 
 ## 개발 환경과 실행
 
-- Python 3 (4명 모두 같은 버전, **버전 번호 미정**: Streamlit 지원 범위 확인 후 결정)
+- Python 3.14.2 (4명 모두 같은 버전)
 - VS Code
 - Streamlit (화면), Plotly (`px.timeline` 간트 차트), pandas
 
@@ -43,7 +43,7 @@ streamlit run app.py
 
 > Colab은 쓰지 않는다. Streamlit은 웹 서버를 띄우는 방식이라 Colab에서는 따로 우회 설정을 해야 한다.
 
-## 공통 약속 (초안)
+## 공통 약속(확정)
 
 - **날짜는 `datetime.date`로 통일**하고, 기간은 `int`(일)로 쓴다. `st.date_input`이 `date`를 돌려주고 Plotly 간트도 그대로 받는다
 - **완료일 = 시작일 + 기간**. 완료일은 "다음 작업이 시작할 수 있는 날"이다. 예: 11/2 시작, 4일 → 완료일 11/6
