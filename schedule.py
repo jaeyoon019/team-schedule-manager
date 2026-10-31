@@ -57,4 +57,8 @@ def project_finish(schedule):
     return late_date
 
 def shift_days(before, after):
-    pass
+    result = {}
+    for tid in before:
+        if tid in after:
+            result[tid] = (after[tid][1] - before[tid][1]).days
+    return result
