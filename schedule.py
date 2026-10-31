@@ -1,0 +1,35 @@
+class CycleError(Exception):
+    pass
+
+def topo_sort(tasks):
+    indegree = {tid: len(tasks[tid].preds) for tid in tasks}
+    succs = {tid: [] for tid in tasks}
+
+    for tid in tasks:
+        for p in tasks[tid].preds:
+            succs[p].append(tid)
+
+    ready = [tid for tid in indegree if indegree[tid] == 0]
+    order = []
+
+    while(ready != []):
+        cur = ready.pop(0)
+        order.append(cur)
+        for tid in succs[cur]:
+            indegree[tid] -= 1
+            if indegree[tid] == 0:
+                ready.append(tid)
+
+    if len(tasks) != len(order):
+        problems = [tid for tid in tasks if tid not in order]
+        raise CycleError(f"순환이 있거나 그 뒤에 있는 작업: {", ".join(problems)}")
+    return order
+
+def compute_schedule(tasks, durations = None, starts = None):
+    pass
+
+def project_finish(schedule):
+    pass
+
+def shift_days(before, after):
+    pass
