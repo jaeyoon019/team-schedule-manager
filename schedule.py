@@ -51,7 +51,10 @@ def compute_schedule(tasks, durations = None, starts = None):
     return result
 
 def project_finish(schedule):
-    pass
+    late_date = list(schedule.values())[0][1]
+    for _, finish in schedule.values():
+        late_date = max(late_date, finish)
+    return late_date
 
 def shift_days(before, after):
     pass
