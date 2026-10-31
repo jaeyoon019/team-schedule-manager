@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 class CycleError(Exception):
     pass
 
@@ -26,7 +28,27 @@ def topo_sort(tasks):
     return order
 
 def compute_schedule(tasks, durations = None, starts = None):
-    pass
+    if durations is None:
+        durations = {}
+    if starts is None:
+        starts = {}
+
+    order = topo_sort(tasks)
+    result = {}
+
+    for tid in order:
+        task = tasks[tid]
+
+        start = starts[tid] if tid in starts else task.planned_start
+        for p in task.preds:
+            start = max(start, result[p][1])
+
+        dur = durations[tid] if tid in durations else task.duration
+        finish = start + timedelta(days=dur + task.delay)
+
+        result[tid] = (start, finish)
+
+    return result
 
 def project_finish(schedule):
     pass
