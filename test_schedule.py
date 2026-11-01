@@ -25,6 +25,15 @@ except CycleError as e:
 assert all(tid in message for tid in ["A", "B", "C"]), message
 print("순환 감지:", message)
 
+# topo_sort — 자기 순환: A가 자기 자신을 선행으로 가짐. 관계없는 B는 메시지에 없어야 한다
+try:
+    topo_sort({"A": T(preds=["A"]), "B": T(preds=[])})
+    raise AssertionError("자기 순환인데 CycleError가 나지 않음")
+except CycleError as e:
+    message = str(e)
+assert "A" in message and "B" not in message, message
+print("자기 순환 감지:", message)
+
 print("topo_sort 테스트 통과")
 
 
@@ -80,6 +89,17 @@ assert s["B"] == (d(11, 8), d(11, 13)) and s["C"] == (d(11, 13), d(11, 16)), s
 assert project_finish(s) == d(11, 16), s
 print("B 11/8 시작:", project_finish(s))
 
+# 합류: C는 A(11/4 완료)와 B(11/7 완료)를 둘 다 기다리므로, 늦게 끝나는 B에 맞춰 11/7 시작
+# preds를 ["B", "A"] 순서로 둬서, 마지막 선행 작업만 보는 버그도 잡히게 한다
+merge = {
+    "A": T(preds=[],         duration=2, planned_start=d(11, 2), delay=0),
+    "B": T(preds=[],         duration=5, planned_start=d(11, 2), delay=0),
+    "C": T(preds=["B", "A"], duration=1, planned_start=d(11, 2), delay=0),
+}
+m = compute_schedule(merge)
+assert m["C"] == (d(11, 7), d(11, 8)), m
+print("합류:", m["C"])
+
 print("compute_schedule 테스트 통과")
 
 
@@ -87,6 +107,13 @@ print("compute_schedule 테스트 통과")
 assert project_finish({"C": (d(11, 11), d(11, 14)), "A": (d(11, 2), d(11, 6))}) == d(11, 14)
 assert project_finish({"A": (d(11, 2), d(11, 14)), "X": (d(11, 12), d(11, 13))}) == d(11, 14)
 assert project_finish({"A": (d(11, 2), d(11, 6))}) == d(11, 6)
+
+# project_finish — 빈 일정은 ValueError
+try:
+    project_finish({})
+    raise AssertionError("빈 일정인데 ValueError가 나지 않음")
+except ValueError as e:
+    print("빈 일정:", e)
 print("project_finish 테스트 통과")
 
 
