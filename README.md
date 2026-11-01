@@ -80,6 +80,7 @@ def compute_schedule(tasks, durations=None, starts=None) -> dict[str, tuple[date
 
 def project_finish(schedule) -> date
     # 전체 완료일 = 완료일 중 가장 늦은 날
+    # 빈 일정이면 ValueError
 
 def shift_days(before, after) -> dict[str, int]
     # 두 일정 사이에 작업별 완료일이 며칠 밀렸는지 (지연 영향, 기존/조정안 비교)
