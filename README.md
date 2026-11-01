@@ -84,6 +84,10 @@ def project_finish(schedule) -> date
 
 def shift_days(before, after) -> dict[str, int]
     # 두 일정 사이에 작업별 완료일이 며칠 밀렸는지 (지연 영향, 기존/조정안 비교)
+
+def days_over(finish, deadline) -> int
+    # 마감 대비 초과 일수 (아래 정한 기준 2). 0 이하면 통과, 음수면 그만큼 여유
+    # 예: 마감 11/20 → 완료일 11/21은 0, 11/22는 1, 11/14는 -7
 ```
 
 - 지연 반영용 함수는 따로 두지 않는다. `delay`를 바꾸고 `compute_schedule`을 다시 부른다
@@ -96,7 +100,7 @@ def shift_days(before, after) -> dict[str, int]
    - 자동 조정안의 "이미 생긴 지연은 고정"은 `delay`를 건드리지 않는 것으로 처리한다
 2. **마감 판정 = `완료일 <= 마감일 + 1일`**. 완료일은 "다음 작업이 시작할 수 있는 날"이라, 이렇게 해야 마감일 당일까지 작업할 수 있다
    - 예: 마감 11/20이면 완료일 11/21까지 통과, 11/22부터 초과(1일)
-   - `adjust.py`와 `evaluate.py`가 **이 식을 똑같이** 쓴다
+   - `adjust.py`와 `evaluate.py`는 이 식을 직접 쓰지 않고 **`days_over`를 불러** 쓴다 (통과 = `days_over(...) <= 0`)
 
 ## 예시 데이터 (테스트 공용)
 

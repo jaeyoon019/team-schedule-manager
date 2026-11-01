@@ -1,7 +1,7 @@
 # 테스트용 코드
 from datetime import date
 from types import SimpleNamespace as T
-from schedule import CycleError, topo_sort, compute_schedule, project_finish, shift_days
+from schedule import CycleError, topo_sort, compute_schedule, project_finish, shift_days, days_over
 
 # topo_sort — 순서는 하나로 정해지지 않으므로 "선행 작업이 앞에 오는가"만 본다 (README)
 def check_order(tasks, order):
@@ -123,3 +123,10 @@ assert shift_days(base, d_late) == {"A": 0, "B": 0, "C": 0, "D": 1, "E": 0}, shi
 assert shift_days(base, shortest) == {"A": -1, "B": -2, "C": -1, "D": -2, "E": -1}, shift_days(base, shortest)
 assert shift_days(base, base) == {"A": 0, "B": 0, "C": 0, "D": 0, "E": 0}, shift_days(base, base)
 print("shift_days 테스트 통과")
+
+
+# days_over — README 정한 기준 2: 마감 11/20이면 완료일 11/21까지 통과, 11/22부터 초과
+assert days_over(d(11, 21), d(11, 20)) == 0    # 마감 당일까지 작업 → 통과
+assert days_over(d(11, 22), d(11, 20)) == 1    # 1일 초과
+assert days_over(d(11, 14), d(11, 20)) == -7   # 7일 여유
+print("days_over 테스트 통과")

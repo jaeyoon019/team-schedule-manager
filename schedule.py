@@ -94,3 +94,7 @@ def shift_days(before, after):
         if tid in after:   # 양쪽 일정에 다 있는 작업만 비교
             result[tid] = (after[tid][1] - before[tid][1]).days
     return result
+
+def days_over(finish, deadline):
+    """마감 대비 초과 일수. 0 이하면 마감 안(음수면 그만큼 여유)"""
+    return (finish - (deadline + timedelta(days=1))).days
