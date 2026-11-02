@@ -67,7 +67,8 @@ streamlit run app.py
 | `input_task`       | `매개변수`    |`Task, None`      | 작업 정보를 입력받는 폼                   |
 | `validate_task`    | `self`       |`boolean`         | 객체 입력 검증                          |
 | `get_task_example` | `void`       |`dict[str, Task]` | README에 적힌 예시데이터 반환            |
-Task 객체 생성시 주의점: Task 객체를 만들 때 input_task를 포함하여 Task.input_task()와 같이 선언해야 입력 폼으로 넘어감
+
+-Task 객체 생성시 주의점: Task 객체를 만들 때 input_task를 포함하여 Task.input_task()와 같이 선언해야 입력 폼으로 넘어감
 
 ### `schedule.py` 함수
 
