@@ -70,6 +70,42 @@ streamlit run app.py
 
 -Task 객체 생성시 주의점: Task 객체를 만들 때 input_task를 포함하여 Task.input_task()와 같이 선언해야 입력 폼으로 넘어감
 
+### `evaluate.py` 함수
+
+```python
+def evaluate_plan(tasks, user_starts, user_durations, deadline) -> dict
+    # 사용자가 직접 넣은 일정을 평가. 입력 값은 고치지 않는다
+    # user_starts: {ID: 시작일(date)}, user_durations: {ID: 기간(int)}  (delay는 기간에 넣지 않는다)
+    # 반환: {"ok": bool, "problems": list, "schedule": dict|None, "finish": date|None, "over": int|None}
+    #   ok: 문제가 없으면 True
+    #   problems: [{"작업": ID, "종류": str, "내용": str}]
+    #             종류는 입력 누락 / 최소 기간 / 선행 관계 / 완료 작업 변경 / 마감 준수
+    #   schedule: {ID: (시작일, 완료일)}. 선행 관계 위반이나 입력 누락이면 None
+    #   finish: 전체 완료일. schedule이 None이면 None
+    #   over: days_over 값. 0 이하면 통과(음수는 여유 일수), 양수면 초과 일수
+    # 순환 선행 관계면 CycleError가 나므로 app.py가 잡는다
+
+def summary_text(result) -> str
+    # 전체 완료일과 여유/초과 일수를 한 줄 글자로 만든다. 화면 맨 위에 쓴다
+
+def make_problem_table(result) -> DataFrame
+    # 문제 목록 표 (열: 작업, 종류, 내용). 문제가 없으면 빈 표
+
+def make_result_table(tasks, schedule, base_schedule=None) -> DataFrame
+    # 작업별 시작일·완료일·기간 표. base_schedule을 주면 '완료일 변화(일)' 열이 추가된다
+
+def make_gantt(tasks, base_schedule, new_schedule=None) -> plotly Figure
+    # 간트 차트. new_schedule을 주면 기존/조정안을 나란히 비교
+    # app.py에서 st.plotly_chart(fig)로 보여 준다
+```
+
+- 평가 4가지: 최소 기간(입력한 기간 ≥ `min_duration`), 선행 관계(선행 작업이 끝난 뒤에 시작), 완료 작업 변경(`status`가 `"완료"`인 작업은 시작일·기간이 원래와 같아야 함), 마감 준수(`days_over`가 0 이하)
+- `user_starts`와 `user_durations`에는 모든 작업이 들어 있어야 한다. 빠진 작업이 있으면 값을 채우지 않고 "입력 누락" 문제로 알려 주고, 나머지 검사는 하지 않는다
+- 선행 관계는 사용자가 입력한 값끼리 직접 비교한다. 선행 작업의 완료일 = 입력한 시작일 + 입력한 기간 + 그 작업의 `delay`
+- 선행 관계 위반이 있으면 완료일을 계산하지 않는다(`schedule`, `finish`, `over`가 `None`). 최소 기간·완료 작업 변경 문제만 있으면 완료일과 마감 판정은 같이 보여 준다
+- 마감 준수 문제는 작업이 아니라 전체 일정의 문제라서 `problems`에서 작업이 `"전체"`로 표시된다
+- **`app.py` 호출 순서**: `evaluate_plan` → `summary_text` → `make_problem_table` → (`schedule`이 `None`이 아니면) `make_result_table`, `make_gantt`
+
 ### `schedule.py` 함수
 
 ```python
