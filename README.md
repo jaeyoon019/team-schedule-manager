@@ -137,6 +137,58 @@ def days_over(finish, deadline) -> int
 - 지연 반영용 함수는 따로 두지 않는다. `delay`를 바꾸고 `compute_schedule`을 다시 부른다
 - **`evaluate.py` 주의**: 선행 관계 위반은 **사용자가 입력한 값 그대로** 먼저 검사한다. `compute_schedule`은 `max()`로 시작일을 뒤로 밀기 때문에 위반이 가려진다. 위반이 없을 때만 `starts=사용자 입력`으로 불러 완료일을 받는다
 
+### `adjust.py` 함수
+
+```python
+def propose_adjustment(tasks, deadline) -> dict:
+    # 자동 조정안 생성
+    # tasks: dict[str, Task] — 전체 작업 정보
+    # deadline: date — 프로젝트 마감일
+    # 반환:
+    # {
+    #     "possible": bool,
+    #     "durations": dict[str, int],
+    #     "schedule": dict[str, tuple[date, date]],
+    #     "finish": date,
+    #     "over": int
+    # }
+    # possible: 마감 내 조정 가능 여부
+    # durations: 조정된 작업별 기간
+    # schedule: 작업별 (시작일, 완료일)
+    # finish: 전체 프로젝트 완료일
+    # over: 마감 대비 초과 일수. 0 이하면 통과
+    # 순환 선행 관계면 CycleError 발생. app.py가 처리
+```
+
+**내부 보조 함수**
+
+```python
+def make_min_durations(tasks) -> dict[str, int]:
+    # 완료된 작업의 기간은 유지
+    # 진행 중·시작 전 작업은 최소 기간으로 설정
+    # delay는 변경하지 않음
+    # 반환: {작업 ID: 조정된 기간}
+
+def restore_durations(tasks, deadline, durations) -> dict[str, int]:
+    # 최소 기간으로 설정된 작업을 원래 기간까지 복원
+    # 입력 순서대로 각 작업을 1일씩 증가
+    # 매번 전체 일정 재계산
+    # 마감 초과 시 해당 증가만 되돌림
+    # 한 바퀴 동안 증가가 없으면 종료
+    # 반환: {작업 ID: 최종 조정 기간}
+```
+
+- 완료된 작업의 기간과 기존에 계산된 시작일·완료일은 고정한다.
+- 이미 발생한 `delay`는 모든 작업에서 유지한다.
+- 진행 중인 작업도 최소 기간으로 조정할 수 있다.
+- 최소 기간으로도 마감을 초과하면 `possible=False`로 반환하고 최소 초과 일수를 표시한다.
+- 기존 일정이 이미 마감 안이면 원래 일정을 반환한다.
+- 마감 판정은 `schedule.py`의 `days_over(finish, deadline) <= 0`을 사용한다.
+- 일정 계산에는 `compute_schedule()`, `project_finish()`를 사용한다.
+- `tasks` 원본 객체를 직접 변경하지 않는다.
+- `app.py`에서는 `propose_adjustment()`만 호출하면 되도록 구성한다.
+- 작업 입력 순서에 따라 조정 결과가 달라질 수 있으며 최적안을 보장하지 않는다.
+
 ## 정한 기준 (2026-10-27)
 
 1. **지연 = 그 작업이 원래보다 며칠 더 걸리는지** (`delay`). 실제 기간 = `duration + delay`
