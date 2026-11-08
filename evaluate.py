@@ -11,7 +11,7 @@ from datetime import timedelta
 import pandas as pd
 import plotly.express as px
 
-from schedule import compute_schedule, project_finish, shift_days
+from schedule import CycleError, compute_schedule, project_finish, shift_days, days_over
 
 
 def fmt(d):
@@ -77,16 +77,6 @@ def check_done_unchanged(tasks, user_starts, user_durations):
     return problems
 
 
-def deadline_margin(finish, deadline):
-    """평가 4: 마감 판정에 쓰는 여유 일수를 계산한다
-    마감 판정 = 완료일 <= 마감일 + 1일 (완료일은 '다음 작업이 시작할 수 있는 날'이라 마감일 당일까지 작업 가능)
-    돌려주는 값: 0 이상이면 여유 일수, 음수면 초과 일수(절댓값)
-    예: 마감 11/20이면 완료일 11/21은 0(통과), 11/22는 -1(1일 초과)
-    adjust.py와 같은 식을 쓴다
-    """
-    return (deadline + timedelta(days=1) - finish).days
-
-
 def evaluate_plan(tasks, user_starts, user_durations, deadline):
     """사용자가 직접 넣은 일정을 평가해 결과 딕셔너리를 돌려준다
     돌려주는 값:
@@ -94,10 +84,10 @@ def evaluate_plan(tasks, user_starts, user_durations, deadline):
       problems: 문제 목록 (make_problem 모양)
       schedule: 계산한 {ID: (시작일, 완료일)}. 선행 관계 위반이 있거나 입력이 빠졌으면 None
       finish:   전체 완료일. schedule이 None이면 None
-      margin:   deadline_margin 값 (0 이상 여유, 음수 초과). finish가 None이면 None
-    순환 선행 관계가 있으면 compute_schedule에서 CycleError가 나므로 app.py가 잡는다
+      over:     days_over 값 (마감 대비 초과 일수. 0 이하면 통과, 음수면 그만큼 여유). finish가 None이면 None
+    순환 선행 관계(A→B→C→A)가 있어도 예외를 내지 않고 '선행 관계' 문제로 알려 준다
     """
-    result = {"ok": False, "problems": [], "schedule": None, "finish": None, "margin": None}
+    result = {"ok": False, "problems": [], "schedule": None, "finish": None, "over": None}
 
     # 입력이 빠졌으면 나머지 검사를 할 수 없다
     missing = check_missing(tasks, user_starts, user_durations)
@@ -113,16 +103,23 @@ def evaluate_plan(tasks, user_starts, user_durations, deadline):
 
     # 선행 관계 위반이 없을 때만 완료일을 계산한다 (위반이 있으면 일정이 말이 안 된다)
     if not precedence:
-        schedule = compute_schedule(tasks, durations=user_durations, starts=user_starts)
+        try:
+            schedule = compute_schedule(tasks, durations=user_durations, starts=user_starts)
+        except CycleError as e:
+            # 기간이 0일이면 순환이어도 위 검사를 지나갈 수 있어서 여기서 한 번 더 막는다
+            problems.append(make_problem("전체", "선행 관계", str(e)))
+            result["problems"] = problems
+            return result
         finish = project_finish(schedule)
-        margin = deadline_margin(finish, deadline)
+        # 마감 판정 = 완료일 <= 마감일 + 1일. days_over가 0 이하면 통과 (adjust.py와 같은 식)
+        over = days_over(finish, deadline)
         result["schedule"] = schedule
         result["finish"] = finish
-        result["margin"] = margin
-        if margin < 0:
+        result["over"] = over
+        if over > 0:
             problems.append(make_problem(
                 "전체", "마감 준수",
-                f"전체 완료일 {fmt(finish)}이(가) 마감 {fmt(deadline)}을(를) {-margin}일 넘깁니다"))
+                f"전체 완료일 {fmt(finish)}이(가) 마감 {fmt(deadline)}을(를) {over}일 넘깁니다"))
 
     result["problems"] = problems
     result["ok"] = (problems == [])
@@ -132,13 +129,16 @@ def evaluate_plan(tasks, user_starts, user_durations, deadline):
 def summary_text(result):
     """평가 결과를 한두 줄 글자로 만든다 (화면 맨 위에 보여 줄 용도)"""
     if result["finish"] is None:
+        kinds = [p["종류"] for p in result["problems"]]
+        if "입력 누락" in kinds:
+            return "입력이 빠진 작업이 있어 완료일을 계산하지 못했습니다"
         return "선행 관계 문제가 있어 완료일을 계산하지 못했습니다"
     text = f"전체 완료일: {fmt(result['finish'])}"
-    margin = result["margin"]
-    if margin >= 0:
-        text += f", 마감까지 여유 {margin}일"
+    over = result["over"]
+    if over <= 0:
+        text += f", 마감까지 여유 {-over}일"
     else:
-        text += f", 마감 {-margin}일 초과"
+        text += f", 마감 {over}일 초과"
     return text
 
 
@@ -161,7 +161,7 @@ def make_result_table(tasks, schedule, base_schedule=None):
             "이름": tasks[tid].name,
             "시작일": fmt(start),
             "완료일": fmt(finish),
-            "기간(일)": (finish - start).days,
+            "기간(일)": (finish - start).days - tasks[tid].delay,   # 지연일은 빼고 입력한 기간만
         }
         if base_schedule is not None:
             row["완료일 변화(일)"] = shifts[tid]
