@@ -11,7 +11,7 @@ from datetime import timedelta
 import pandas as pd
 import plotly.express as px
 
-from schedule import CycleError, compute_schedule, project_finish, shift_days, days_over
+from schedule import topo_sort, compute_schedule, project_finish, shift_days, days_over
 
 
 def fmt(d):
@@ -77,12 +77,8 @@ def original_starts(tasks):
     """완료 작업 비교에 쓸 '원래 시작일'을 계산한다
     planned_start만 쓰면 선행 작업이 지연돼 늦게 시작한 완료 작업과 비교가 안 맞는다.
     그래서 사용자 입력 없이 compute_schedule(tasks)로 계산한 시작일(지연 반영)을 쓴다
-    순환이 있어 계산할 수 없으면 planned_start를 그대로 쓴다
     """
-    try:
-        schedule = compute_schedule(tasks)
-    except CycleError:
-        return {tid: tasks[tid].planned_start for tid in tasks}
+    schedule = compute_schedule(tasks)
     return {tid: schedule[tid][0] for tid in tasks}
 
 
@@ -112,7 +108,7 @@ def evaluate_plan(tasks, user_starts, user_durations, deadline):
       schedule: 계산한 {ID: (시작일, 완료일)}. 선행 관계 위반이 있거나 입력이 빠졌으면 None
       finish:   전체 완료일. schedule이 None이면 None
       over:     days_over 값 (마감 대비 초과 일수. 0 이하면 통과, 음수면 그만큼 여유). finish가 None이면 None
-    순환 선행 관계(A→B→C→A)가 있어도 예외를 내지 않고 '선행 관계' 문제로 알려 준다
+    순환 선행 관계(A→B→C→A)가 있으면 CycleError가 나므로 app.py가 잡는다
     """
     result = {"ok": False, "problems": [], "schedule": None, "finish": None, "over": None}
 
@@ -121,6 +117,9 @@ def evaluate_plan(tasks, user_starts, user_durations, deadline):
     if unknown:
         result["problems"] = unknown
         return result
+
+    # 순환 선행 관계면 여기서 CycleError가 난다 (README 약속: app.py가 잡아서 화면에 표시)
+    topo_sort(tasks)
 
     # 입력이 빠졌으면 나머지 검사를 할 수 없다
     missing = check_missing(tasks, user_starts, user_durations)
@@ -136,13 +135,7 @@ def evaluate_plan(tasks, user_starts, user_durations, deadline):
 
     # 선행 관계 위반이 없을 때만 완료일을 계산한다 (위반이 있으면 일정이 말이 안 된다)
     if not precedence:
-        try:
-            schedule = compute_schedule(tasks, durations=user_durations, starts=user_starts)
-        except CycleError as e:
-            # 기간이 0일이면 순환이어도 위 검사를 지나갈 수 있어서 여기서 한 번 더 막는다
-            problems.append(make_problem("전체", "선행 관계", str(e)))
-            result["problems"] = problems
-            return result
+        schedule = compute_schedule(tasks, durations=user_durations, starts=user_starts)
         finish = project_finish(schedule)
         # 마감 판정 = 완료일 <= 마감일 + 1일. days_over가 0 이하면 통과 (adjust.py와 같은 식)
         over = days_over(finish, deadline)
@@ -194,8 +187,7 @@ def make_result_table(tasks, schedule, base_schedule=None):
             "이름": tasks[tid].name,
             "시작일": fmt(start),
             "완료일": fmt(finish),
-            "기간(일)": (finish - start).days - tasks[tid].delay,   # 사용자가 넣은 기간 (지연 제외)
-            "실제 소요(일)": (finish - start).days,                 # 기간 + 지연
+            "기간(일)": (finish - start).days,   # 완료일 - 시작일 (기간 + 지연). app.py가 이 열을 '실제 소요'로 쓴다
         }
         if base_schedule is not None:
             row["완료일 변화(일)"] = shifts[tid]
