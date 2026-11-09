@@ -62,7 +62,7 @@ class Task:
             temp_status = st.selectbox("작업 상태", ["시작 전", "진행 중", "완료"])
             temp_name = st.text_input("작업 이름", placeholder="예: 작업 A").strip()
             temp_min_duration = st.number_input("최소 기간(일)", value=1)
-            temp_preds_str = list(st.text_input("선행 작업 ID (쉼표로 구분)", placeholder="예: A, B (없으면 비워둠)").replace(",", "").split())
+            temp_preds_str = list(st.text_input("선행 작업 ID (쉼표로 구분)", placeholder="예: A, B (없으면 비워둠)").split(","))
             temp_delay = st.number_input("지연 일수(일)", value=0)
 
             submitted = st.form_submit_button("작업 추가")
