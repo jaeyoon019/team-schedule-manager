@@ -24,6 +24,17 @@ def make_problem(tid, kind, message):
     return {"작업": tid, "종류": kind, "내용": message}
 
 
+def check_unknown_preds(tasks):
+    """선행 작업 목록에 작업 목록에 없는 ID(빈 칸 포함)가 있으면 알려 준다. 있으면 계산하다 KeyError가 나기 때문"""
+    problems = []
+    for tid in tasks:
+        for p in tasks[tid].preds:
+            if p not in tasks:
+                problems.append(make_problem(
+                    tid, "선행 관계", f"{tid} 작업의 선행 작업 '{p}'이(가) 작업 목록에 없습니다"))
+    return problems
+
+
 def check_missing(tasks, user_starts, user_durations):
     """사용자 입력에 빠진 작업이 있는지 검사한다. 빠진 값을 몰래 채우지 않고 그대로 알려 준다"""
     problems = []
@@ -62,18 +73,34 @@ def check_precedence(tasks, user_starts, user_durations):
     return problems
 
 
+def original_starts(tasks):
+    """완료 작업 비교에 쓸 '원래 시작일'을 계산한다
+    planned_start만 쓰면 선행 작업이 지연돼 늦게 시작한 완료 작업과 비교가 안 맞는다.
+    그래서 사용자 입력 없이 compute_schedule(tasks)로 계산한 시작일(지연 반영)을 쓴다
+    순환이 있어 계산할 수 없으면 planned_start를 그대로 쓴다
+    """
+    try:
+        schedule = compute_schedule(tasks)
+    except CycleError:
+        return {tid: tasks[tid].planned_start for tid in tasks}
+    return {tid: schedule[tid][0] for tid in tasks}
+
+
 def check_done_unchanged(tasks, user_starts, user_durations):
-    """평가 3: 이미 완료한 작업은 시작일과 기간을 바꾸면 안 된다"""
+    """평가 3: 이미 완료한 작업은 시작일과 기간을 바꾸면 안 된다
+    원래 시작일 = 지연까지 반영해 계산한 시작일 (original_starts), 원래 기간 = duration
+    """
     problems = []
+    origin = original_starts(tasks)
     for tid in tasks:
         task = tasks[tid]
         if task.status != "완료":
             continue
-        if user_starts[tid] != task.planned_start or user_durations[tid] != task.duration:
+        if user_starts[tid] != origin[tid] or user_durations[tid] != task.duration:
             problems.append(make_problem(
                 tid, "완료 작업 변경",
                 f"{tid} 작업은 이미 완료했는데 시작일 또는 기간이 바뀌었습니다 "
-                f"(원래 {fmt(task.planned_start)} 시작, {task.duration}일)"))
+                f"(원래 {fmt(origin[tid])} 시작, {task.duration}일)"))
     return problems
 
 
@@ -88,6 +115,12 @@ def evaluate_plan(tasks, user_starts, user_durations, deadline):
     순환 선행 관계(A→B→C→A)가 있어도 예외를 내지 않고 '선행 관계' 문제로 알려 준다
     """
     result = {"ok": False, "problems": [], "schedule": None, "finish": None, "over": None}
+
+    # 없는 선행 작업이 있으면 일정을 계산할 수 없다
+    unknown = check_unknown_preds(tasks)
+    if unknown:
+        result["problems"] = unknown
+        return result
 
     # 입력이 빠졌으면 나머지 검사를 할 수 없다
     missing = check_missing(tasks, user_starts, user_durations)
@@ -161,7 +194,8 @@ def make_result_table(tasks, schedule, base_schedule=None):
             "이름": tasks[tid].name,
             "시작일": fmt(start),
             "완료일": fmt(finish),
-            "기간(일)": (finish - start).days - tasks[tid].delay,   # 지연일은 빼고 입력한 기간만
+            "기간(일)": (finish - start).days - tasks[tid].delay,   # 사용자가 넣은 기간 (지연 제외)
+            "실제 소요(일)": (finish - start).days,                 # 기간 + 지연
         }
         if base_schedule is not None:
             row["완료일 변화(일)"] = shifts[tid]
@@ -169,8 +203,9 @@ def make_result_table(tasks, schedule, base_schedule=None):
     return pd.DataFrame(rows)
 
 
-def make_gantt(tasks, base_schedule, new_schedule=None):
-    """Plotly 간트 차트를 만든다. new_schedule을 주면 기존/조정안을 나란히 비교한다
+def make_gantt(tasks, base_schedule, new_schedule=None, base_label="기존", new_label="조정안"):
+    """Plotly 간트 차트를 만든다. new_schedule을 주면 base_label/new_label로 나란히 비교한다
+    조정안 화면은 기본값 그대로, 지연 비교 화면은 new_label="지연 반영"처럼 이름을 넘긴다
     완료일이 '다음 작업이 시작할 수 있는 날'이라 막대 끝을 완료일로 그대로 쓴다
     """
     rows = []
@@ -179,14 +214,16 @@ def make_gantt(tasks, base_schedule, new_schedule=None):
         label = f"{tid} {tasks[tid].name}"
         labels.append(label)
         start, finish = base_schedule[tid]
-        rows.append({"작업": label, "시작": pd.to_datetime(start), "완료": pd.to_datetime(finish), "구분": "기존"})
+        rows.append({"작업": label, "시작": pd.to_datetime(start), "완료": pd.to_datetime(finish), "구분": base_label})
         if new_schedule is not None:
             start, finish = new_schedule[tid]
-            rows.append({"작업": label, "시작": pd.to_datetime(start), "완료": pd.to_datetime(finish), "구분": "조정안"})
+            rows.append({"작업": label, "시작": pd.to_datetime(start), "완료": pd.to_datetime(finish), "구분": new_label})
 
     df = pd.DataFrame(rows)
     fig = px.timeline(df, x_start="시작", x_end="완료", y="작업", color="구분",
                       category_orders={"작업": labels})
-    fig.update_yaxes(autorange="reversed")   # 위에서부터 입력 순서대로
-    fig.update_layout(barmode="group")       # 기존/조정안이 겹치지 않고 나란히
+    # 세로축은 배열의 첫 항목이 맨 아래에 온다. 입력 순서(A가 맨 위)로 보이도록 배열을 뒤집어 준다
+    # autorange도 reversed가 아니라 True로 못박아, 라이브러리 버전에 따라 순서가 뒤집히지 않게 한다
+    fig.update_yaxes(autorange=True, categoryorder="array", categoryarray=labels[::-1])
+    fig.update_layout(barmode="group")       # 두 일정이 겹치지 않고 나란히
     return fig
