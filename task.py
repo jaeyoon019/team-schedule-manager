@@ -65,7 +65,9 @@ class Task:
             temp_preds_str = list(st.text_input("선행 작업 ID (쉼표로 구분)", placeholder="예: A, B (없으면 비워둠)").split(","))
             temp_delay = st.number_input("지연 일수(일)", value=0)
 
-            submitted = st.form_submit_button("작업 추가")
+            submitted = st.form_submit_button("작업 추가") 
+
+            temp_preds = [p.strip() for p in temp_preds_str if p.strip()]  # 공백 제거 및 빈 문자열 제거
 
         if not submitted:
             return None
@@ -77,7 +79,7 @@ class Task:
                 name=temp_name,
                 duration=int(temp_duration),
                 min_duration=int(temp_min_duration),
-                preds=temp_preds_str,
+                preds=temp_preds,
                 planned_start=temp_planned_start,
                 status=temp_status,
                 delay=int(temp_delay),
