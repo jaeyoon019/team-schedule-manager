@@ -1,4 +1,4 @@
-from datetime import dat
+from datetime import date
 
 from schedule import compute_schedule, days_over, project_finish
 
