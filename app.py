@@ -1,14 +1,3 @@
-"""팀플 일정 관리기 — 11/8 Streamlit 화면 뼈대.
-
-현재 구현 범위
-  1) 작업 데이터 입력 및 검증
-  2) 기본 일정/마감 판정 및 결과 표·간트 차트
-  3) 지연 입력 후 일정 재계산과 기존 일정 비교
-
-추후 통합: adjust.py 자동 조정, evaluate.py 직접 입력 평가.
-실행: streamlit run app.py
-"""
-
 from dataclasses import replace
 from datetime import date, datetime
 
@@ -24,7 +13,6 @@ STATUS_OPTIONS = ["시작 전", "진행 중", "완료"]
 
 
 def example_rows() -> pd.DataFrame:
-    """기존 task.py의 예시 데이터를 편집 가능한 표로 변환."""
     tasks = Task.get_task_example()
     return pd.DataFrame([
         {
@@ -72,10 +60,8 @@ def parse_date(value, row_index: int) -> date:
 
 
 def parse_tasks(edited_rows: pd.DataFrame) -> dict[str, Task]:
-    """입력 표 -> dict[str, Task]. task.py 검증 보완 전 임시 UI 검증."""
     tasks = {}
     for row_index, row in enumerate(edited_rows.to_dict("records"), start=1):
-        # 빈 행을 추가했다가 사용하지 않은 경우에는 무시한다.
         if all(pd.isna(row.get(field)) or str(row.get(field)).strip() == ""
                for field in ("ID", "작업 이름", "기간(일)", "예정 시작일")):
             continue
@@ -100,7 +86,6 @@ def parse_tasks(edited_rows: pd.DataFrame) -> dict[str, Task]:
     if not tasks:
         raise ValueError("작업을 한 개 이상 입력해 주세요.")
 
-    # 현재 task.py에서는 존재하지 않는 선행 ID를 검사하지 않으므로 UI에서 우선 방지.
     for tid, task in tasks.items():
         for pred in task.preds:
             if pred not in tasks:
@@ -121,12 +106,13 @@ def render_finish(schedule: dict, deadline: date) -> None:
 
 
 def render_table(tasks: dict, schedule: dict, base_schedule=None) -> None:
-    """기존 evaluate.py 표 함수를 사용하고 기간·지연을 구분해 표시."""
     table = make_result_table(tasks, schedule, base_schedule=base_schedule)
-    table = table.rename(columns={"기간(일)": "실제 소요(기간+지연)(일)"})
-    table.insert(4, "설정 기간(일)", [tasks[tid].duration for tid in tasks])
-    table.insert(5, "추가 지연(일)", [tasks[tid].delay for tid in tasks])
-    st.dataframe(table, hide_index=True, use_container_width=True)
+    table = table.drop(columns=["기간(일)"], errors="ignore")
+    ids = table["작업"].tolist()
+    table.insert(4, "설정 기간(일)", [tasks[tid].duration for tid in ids])
+    table.insert(5, "추가 지연(일)", [tasks[tid].delay for tid in ids])
+    table.insert(6, "실제 소요(기간+지연)(일)", [tasks[tid].duration + tasks[tid].delay for tid in ids])
+    st.dataframe(table, hide_index=True, width="stretch")
 
 
 def main() -> None:
@@ -147,7 +133,7 @@ def main() -> None:
             st.session_state.task_rows,
             num_rows="dynamic",
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             column_config={
                 "ID": st.column_config.TextColumn("ID", required=True),
                 "작업 이름": st.column_config.TextColumn("작업 이름", required=True),
@@ -200,7 +186,7 @@ def main() -> None:
             delay_rows,
             key=f"delay_editor_{st.session_state.version}",
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             disabled=["작업 ID", "작업 이름"],
             column_config={
                 "추가 지연(일)": st.column_config.NumberColumn("추가 지연(일)", min_value=0, step=1, required=True)
@@ -229,10 +215,10 @@ def main() -> None:
         new_tasks = st.session_state.delayed_tasks
         render_finish(new_schedule, saved_deadline)
         render_table(new_tasks, new_schedule, base_schedule)
-        st.plotly_chart(make_gantt(new_tasks, base_schedule, new_schedule), use_container_width=True)
+        st.plotly_chart(make_gantt(new_tasks, base_schedule, new_schedule), width="stretch")
     else:
         st.subheader("4. 기본 일정 간트 차트")
-        st.plotly_chart(make_gantt(tasks, base_schedule), use_container_width=True)
+        st.plotly_chart(make_gantt(tasks, base_schedule), width="stretch")
 
     st.divider()
     st.subheader("추후 통합할 기능")
