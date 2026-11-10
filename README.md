@@ -76,6 +76,29 @@ streamlit run app.py
 
 ※ 현재 버전은 화면 뼈대이며 최종 완성본이 아니다.
 
+### 2026-11-10 수정 및 추가 구현 (장지우)
+
+**app.py 수정**
+- 지연 결과 표의 실제 소요 기간을 `duration + delay`로 계산하도록 수정
+- 설정 기간, 추가 지연, 실제 소요 기간을 각각 구분하여 표시
+- `use_container_width=True` 5곳을 `width="stretch"`로 변경하여 Streamlit 폐기 경고 해결
+
+**adjust.py 초안 구현**
+- `make_min_durations()`: 완료 작업을 제외한 나머지 작업을 최소 기간으로 설정
+- `restore_durations()`: 마감 범위 내에서 작업 기간을 입력 순서대로 1일씩 복원
+- `propose_adjustment()`: 자동 조정 전체 과정 실행 및 결과 반환
+- 완료 작업의 기존 일정과 모든 작업의 `delay` 유지
+- 조정 중 선행 작업이 일찍 끝나면 후속 작업도 앞당겨 시작할 수 있도록 처리
+- 최소 기간으로도 마감을 초과하면 `possible=False` 반환
+- 조정 불가능한 경우에도 최소 기간 기준 `durations`, `schedule`, `finish`, `over` 반환
+- 원본 Task 객체는 수정하지 않음
+
+**남은 작업**
+- app.py에 adjust.py 자동 조정 기능 연결
+- 자동 조정안 적용 / 직접 입력 / 종료 화면 구현
+- evaluate.py 직접 입력 평가 화면 연결
+- 전체 통합 테스트
+
 ## 공통 약속(확정)
 
 - **날짜는 `datetime.date`로 통일**하고, 기간은 `int`(일)로 쓴다. `st.date_input`이 `date`를 돌려주고 Plotly 간트도 그대로 받는다
