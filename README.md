@@ -147,6 +147,7 @@ class CycleError(Exception): ...
 
 def topo_sort(tasks) -> list[str]
     # 선행 작업이 항상 앞에 오는 ID 순서. 순환이면 CycleError
+    # 없는 선행 ID면 KeyError. 호출 전에 입력 검증에서 막는다
 
 def compute_schedule(tasks, durations=None, starts=None) -> dict[str, tuple[date, date]]
     # ID → (시작일, 완료일)
@@ -259,12 +260,12 @@ def restore_durations(tasks, deadline, durations) -> dict[str, int]:
 | 10/21(수) 23:59      | 기획서     | —          | 기능 정의, 실행 흐름도, 개발 환경, 역할 분담                                             | ✅ 10/19 |
 | 11/4(수)             | 공통 기반   | twoguard07 | `Task` 클래스·예시 데이터 완성 (입력 폼은 뒤로)                                                       | ✅ 11/3 |
 |                     |         | 각자         | 맡은 파일의 함수 이름·입출력을 README `공통 약속`에 추가 (`task.py`·`adjust.py`·`evaluate.py`)            | ✅ 11/4 |
-| 11/8(일)             | 화면 뼈대   | sulis0726  | `app.py` 뼈대: 작업 입력 → 일정 계산 → 결과 표 → 지연 재계산                                            |         |
+| 11/8(일)             | 화면 뼈대   | sulis0726  | `app.py` 뼈대: 작업 입력 → 일정 계산 → 결과 표 → 지연 재계산                                            | ✅ 11/8 |
 | 11/9(월)             | 중간 구현   | jaeyoon019 | `schedule.py` 완성                                                                      | ✅ 11/1  |
-|                     |         | Rbgh32     | `evaluate.py` 완성 (간트 차트 제외)                                                           |         |
+|                     |         | Rbgh32     | `evaluate.py` 완성 (간트 차트 제외)                                                           | ✅ 11/10 |
 |                     |         | sulis0726  | `adjust.py` 초안 (조정 불가 판정 + 조정안 생성)                                                    |         |
-|                     |         | twoguard07 | 입력 검증 완성 (빈칸·음수·최소 기간이 소요 기간보다 큼·없는 선행 작업)                                            |         |
-|  |  | 각자 | 검토 내용 수정 (필수 항목) |  |
+|                     |         | twoguard07 | 입력 검증 완성 (빈칸·음수·최소 기간이 소요 기간보다 큼·없는 선행 작업)                                            | 🔶 없는 선행 작업 검사 미완 |
+|  |  | 각자 | 검토 내용 수정 (필수 항목) | 🔶 일부 |
 | 11/10(화)~11(수)      | 중간 제출물  | jaeyoon019 | 요약서(구현 진행률·핵심 함수 동작 여부·잔여 구현 계획)                                                      |         |
 |                     |         | 미정         | PPT, 소스코드(일부)                                                                         |         |
 | 11/11(수) 23:59      | 중간 제출   | jaeyoon019 | 요약서·PPT·소스코드(일부)를 교수에게 메일로 제출 (조원 전원 참조)                                              |         |
