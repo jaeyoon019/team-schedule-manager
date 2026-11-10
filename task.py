@@ -4,7 +4,9 @@ import streamlit as st
 
 # Streamlit 재실행 시에도 초기화되지 않도록 session_state에 리스트 생성
 if "task_ids" not in st.session_state:
-    st.session_state.task_ids = []
+    st.session_state.task_ids = set()
+if "tasks_empty_ids" not in st.session_state:
+    st.session_state.tasks_empty_ids = set()
 
 #작업 각각의 정보를 담는 데이터 클래스
 @dataclass
@@ -20,6 +22,7 @@ class Task:
     delay:int=0                     #원래보다 더 걸리는 일수(기본적으로 0)
 
     ids = st.session_state.task_ids    #전체 작업 ID 목록
+    empty_ids = st.session_state.tasks_empty_ids  #선행 작업이 없는 작업 ID 목록
 
     #객체 생성시 바로 실행
     def __post_init__(self):
@@ -28,7 +31,8 @@ class Task:
             raise ValueError("유효하지 않은 task입니다")
         #Task 객체 생성 후 자동으로 전체 작업 ID 목록에 추가
         if self.id not in Task.ids:
-            Task.ids.append(self.id)
+            Task.ids.add(self.id)
+        
 
     #Task 객체 입력 검증
     def validate_task(self):
@@ -48,16 +52,20 @@ class Task:
         #status의 값이 "시작 전", "진행 중", "완료" 중 하나가 아니면 False
         if self.status not in ["시작 전", "진행 중", "완료"]:
             return False
-        #preds(선행 작업 id들 목록)에 ids(전체 작업 id 목록)에 없으면 False
-        if self.ids is not None:
-            for pred in self.preds:
-                if pred not in Task.ids:
-                    return False
         #preds(선행 작업)가 자기자신을 포함 하거나 없으면 False
         if self.id in self.preds:
             return False
         if not isinstance(self.preds, list):
-            return False 
+            return False
+        #preds(선행 작업 id들 목록)에 ids(전체 작업 id 목록)에 없으면 empty_ids(선행 작업이 없는 작업 id 목록)에 추가
+        if self.ids is not None and self.empty_ids is not None:
+            for pred in self.preds:
+                if pred not in Task.ids:
+                    Task.ids.add(pred)
+                    Task.empty_ids.add(pred)
+            if self.id in Task.empty_ids:
+                Task.empty_ids.remove(self.id)
+                Task.ids.add(self.id)
         return True
 
 
@@ -162,3 +170,6 @@ class Task:
                 )
             }
         return tasks
+
+A = Task.input_task()
+print(A)
