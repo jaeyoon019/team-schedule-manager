@@ -2,10 +2,13 @@ import datetime
 from dataclasses import dataclass
 import streamlit as st
 
+# Streamlit 재실행 시에도 초기화되지 않도록 session_state에 리스트 생성
+if "task_ids" not in st.session_state:
+    st.session_state.task_ids = []
+
 #작업 각각의 정보를 담는 데이터 클래스
 @dataclass
 class Task:
-
     #필드부분
     id:str                          #고유ID
     name:str                        #작업 이름
@@ -16,19 +19,26 @@ class Task:
     status:str="시작 전"             #"시작 전"/"진행 중"/"완료"(이 세개의 값만 가질 수 있음)
     delay:int=0                     #원래보다 더 걸리는 일수(기본적으로 0)
 
+    ids = st.session_state.task_ids    #전체 작업 ID 목록
 
     #객체 생성시 바로 실행
     def __post_init__(self):
         #Task 객체 생성 후 자동으로 입력 검증
         if not self.validate_task():
             raise ValueError("유효하지 않은 task입니다")
-        
+        #Task 객체 생성 후 자동으로 전체 작업 ID 목록에 추가
+        if self.id not in Task.ids:
+            Task.ids.append(self.id)
 
     #Task 객체 입력 검증
     def validate_task(self):
         #Id, name이 비어있으면 False
         if not self.id or not self.name:
             return False
+        #id중복 시 덮어씌우는 형태, 아래의 주석은 현재로써는 무시
+        #이미 있는 id이면 False
+        #if self.id in Task.ids:
+        #    return False
         #duration, min_duration, delay가 음수이면 False
         if self.duration < 0 or self.min_duration < 0 or self.delay < 0:
             return False
@@ -38,6 +48,11 @@ class Task:
         #status의 값이 "시작 전", "진행 중", "완료" 중 하나가 아니면 False
         if self.status not in ["시작 전", "진행 중", "완료"]:
             return False
+        #preds(선행 작업 id들 목록)에 ids(전체 작업 id 목록)에 없으면 False
+        if self.ids is not None:
+            for pred in self.preds:
+                if pred not in Task.ids:
+                    return False
         #preds(선행 작업)가 자기자신을 포함 하거나 없으면 False
         if self.id in self.preds:
             return False
@@ -82,11 +97,11 @@ class Task:
                 preds=temp_preds,
                 planned_start=temp_planned_start,
                 status=temp_status,
-                delay=int(temp_delay),
+                delay=int(temp_delay)
             )
             if not new_task.validate_task():
                 raise ValueError("유효하지 않은 task입니다")
-
+            
             container.success(f"작업 '{new_task.id} ({new_task.name})'이(가) 추가되었습니다.")
             return new_task
         except ValueError as e:
