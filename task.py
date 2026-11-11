@@ -170,6 +170,3 @@ class Task:
                 )
             }
         return tasks
-
-A = Task.input_task()
-print(A)
