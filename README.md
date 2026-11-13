@@ -107,7 +107,7 @@ streamlit run app.py
 
 ### `Task` 클래스 (`task.py`)
 
-| 필드              | 타입          | 뜻                                |
+| 필드             | 타입          | 뜻                                |
 | --------------- | ----------- | -------------------------------- |
 | `id`            | `str`       | `"A"` 같은 고유 ID                   |
 | `name`          | `str`       | 작업 이름                            |
@@ -118,14 +118,16 @@ streamlit run app.py
 | `status`        | `str`       | `"시작 전"` / `"진행 중"` / `"완료"`     |
 | `delay`         | `int`       | 원래보다 더 걸리는 일수, 기본 0 (아래 정한 기준 1) |
 | `ids`           | `list`      | 현재 존재하는 ID들 목록 |
+| 'empty_ids'     | 'list'      | 선행 작업이 없는 작업 ID 목록 |
 
-| 매서드              | 매개 변수     | return            | 뜻                                |
+| 매서드              | 매개 변수     | return           | 뜻                                |
 | ------------------ | ------------ |----------------- | -------------------------------- |
 | `input_task`       | `매개변수`    |`Task, None`      | 작업 정보를 입력받는 폼                   |
 | `validate_task`    | `self`       |`boolean`         | 객체 입력 검증                          |
 | `get_task_example` | `void`       |`dict[str, Task]` | README에 적힌 예시데이터 반환            |
 
 -Task 객체 생성시 주의점: Task 객체를 만들 때 input_task를 포함하여 Task.input_task()와 같이 선언해야 입력 폼으로 넘어감
+-사용자가 선행 작업으로 현재 존재하는 ID 목록에 없는 ID이면 그 아이디를 일단 empty_ids에 추가함
 
 ### `evaluate.py` 함수
 
