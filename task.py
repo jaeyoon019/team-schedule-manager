@@ -2,13 +2,10 @@ import datetime
 from dataclasses import dataclass
 import streamlit as st
 
-# Streamlit 재실행 시에도 초기화되지 않도록 session_state에 리스트 생성
-if "task_ids" not in st.session_state:
-    st.session_state.task_ids = set()
-if "tasks_empty_ids" not in st.session_state:
-    st.session_state.tasks_empty_ids = set()
-if "tasks" not in st.session_state:
-    st.session_state.tasks = {}
+#Streamlit 재실행 시에도 초기화되지 않도록 session_state에 리스트 생성
+st.session_state.task_ids = set()
+st.session_state.tasks_empty_ids = set()
+st.session_state.tasks = {}
 
 #작업 각각의 정보를 담는 데이터 클래스
 @dataclass
@@ -69,6 +66,10 @@ class Task:
             if self.id in Task.empty_ids:
                 Task.empty_ids.remove(self.id)
                 Task.ids.add(self.id)
+            all_preds = [pred for task_id, task in Task.tasks.items() if task_id != self.id for pred in task.preds] + self.preds
+            for pred in list(Task.empty_ids):
+                if pred not in all_preds:
+                    Task.empty_ids.remove(pred)
         return True
 
 
@@ -92,12 +93,14 @@ class Task:
             temp_preds_str = list(st.text_input("선행 작업 ID (쉼표로 구분)", placeholder="예: A, B (없으면 비워둠)").split(","))
             temp_delay = st.number_input("지연 일수(일)", value=0)
 
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 submitted = st.form_submit_button("작업 추가") 
             with col2:
                 example = st.form_submit_button("예시 데이터 불러오기")
             with col3:
+                reset = st.form_submit_button("작업 초기화")
+            with col4:
                 completed = st.form_submit_button("작업 입력 완료", type="primary", width="stretch")
 
             temp_preds = [p.strip() for p in temp_preds_str if p.strip()]  # 공백 제거 및 빈 문자열 제거
@@ -129,6 +132,11 @@ class Task:
             example_tasks = Task.get_task_example()
             Task.tasks.update(example_tasks)
             container.success("예시 데이터가 추가되었습니다.")
+            return None
+
+        if reset:
+            Task.tasks = {}
+            container.success("작업이 초기화 되었습니다.")
             return None
 
         #'작업 입력 완료' 버튼을 눌렀을 때 검증 후 전체 작업 딕셔너리 반환
@@ -200,3 +208,4 @@ class Task:
                 )
             }
         return tasks
+
