@@ -27,6 +27,23 @@ def example_rows() -> pd.DataFrame:
         for tid, task in tasks.items()
     ])
 
+def input_rows() -> pd.DataFrame:
+    tasks = Task.input_task()
+    if tasks is None:
+        st.stop()
+    return pd.DataFrame([
+        {
+            "ID": tid,
+            "작업 이름": task.name,
+            "기간(일)": task.duration,
+            "최소 기간(일)": task.min_duration,
+            "선행 작업": ", ".join(task.preds),
+            "예정 시작일": task.planned_start,
+            "상태": task.status,
+        }
+        for tid, task in tasks.items()
+    ])
+
 
 def required_text(value, field: str, row_index: int) -> str:
     if pd.isna(value) or not str(value).strip():
@@ -121,7 +138,8 @@ def main() -> None:
     st.caption("화면 뼈대: 작업 입력 → 기본 일정 계산 → 지연 반영 재계산")
 
     if "task_rows" not in st.session_state:
-        st.session_state.task_rows = example_rows()
+        st.session_state.task_rows = input_rows()
+        
     if "version" not in st.session_state:
         st.session_state.version = 0
 

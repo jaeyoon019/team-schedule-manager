@@ -7,6 +7,8 @@ if "task_ids" not in st.session_state:
     st.session_state.task_ids = set()
 if "tasks_empty_ids" not in st.session_state:
     st.session_state.tasks_empty_ids = set()
+if "tasks" not in st.session_state:
+    st.session_state.tasks = {}
 
 #작업 각각의 정보를 담는 데이터 클래스
 @dataclass
@@ -23,6 +25,7 @@ class Task:
 
     ids = st.session_state.task_ids    #전체 작업 ID 목록
     empty_ids = st.session_state.tasks_empty_ids  #선행 작업이 없는 작업 ID 목록
+    tasks = st.session_state.tasks  #전체 작업 객체 목록, {작업ID: Task객체}
 
     #객체 생성시 바로 실행
     def __post_init__(self):
@@ -78,6 +81,7 @@ class Task:
         
         container = st_container if st_container is not None else st
 
+        #작업 입력 폼
         with container.form("input_form"):
             temp_task_id = st.text_input("작업 ID", placeholder="예: A").strip()
             temp_duration = st.number_input("소요 기간(일)", value=1)
@@ -88,34 +92,60 @@ class Task:
             temp_preds_str = list(st.text_input("선행 작업 ID (쉼표로 구분)", placeholder="예: A, B (없으면 비워둠)").split(","))
             temp_delay = st.number_input("지연 일수(일)", value=0)
 
-            submitted = st.form_submit_button("작업 추가") 
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                submitted = st.form_submit_button("작업 추가") 
+            with col2:
+                example = st.form_submit_button("예시 데이터 불러오기")
+            with col3:
+                completed = st.form_submit_button("작업 입력 완료", type="primary", width="stretch")
 
             temp_preds = [p.strip() for p in temp_preds_str if p.strip()]  # 공백 제거 및 빈 문자열 제거
 
-        if not submitted:
+        #'작업 추가'버튼을 눌렀을 때 검증 후 Task 객체 생성 및 Task.tasks에 추가
+        if submitted:
+            try:
+                new_task = Task(
+                    id=temp_task_id,
+                    name=temp_name,
+                    duration=int(temp_duration),
+                    min_duration=int(temp_min_duration),
+                    preds=temp_preds,
+                    planned_start=temp_planned_start,
+                    status=temp_status,
+                    delay=int(temp_delay)
+                )
+                if not new_task.validate_task():
+                    raise ValueError("유효하지 않은 task입니다")
+        
+                container.success(f"작업 '{new_task.id} ({new_task.name})'이(가) 추가되었습니다.")
+                Task.tasks.update({new_task.id: new_task})
+
+            except ValueError as e:
+                container.error(str(e))
+                return None
+
+        if example:
+            example_tasks = Task.get_task_example()
+            Task.tasks.update(example_tasks)
+            container.success("예시 데이터가 추가되었습니다.")
             return None
 
-        # Task 객체 생성 및 반환
-        try:
-            new_task = Task(
-                id=temp_task_id,
-                name=temp_name,
-                duration=int(temp_duration),
-                min_duration=int(temp_min_duration),
-                preds=temp_preds,
-                planned_start=temp_planned_start,
-                status=temp_status,
-                delay=int(temp_delay)
-            )
-            if not new_task.validate_task():
-                raise ValueError("유효하지 않은 task입니다")
-            
-            container.success(f"작업 '{new_task.id} ({new_task.name})'이(가) 추가되었습니다.")
-            return new_task
-        except ValueError as e:
-            container.error(str(e))
-            return None
-    
+        #'작업 입력 완료' 버튼을 눌렀을 때 검증 후 전체 작업 딕셔너리 반환
+        if completed:
+            if not Task.tasks:
+                container.error("작업을 한 개 이상 추가해 주세요.")
+                return None
+            if Task.empty_ids:
+                container.error(f"선행 작업으로 입력되었으나 아직 추가되지 않은 작업이 있습니다: {', '.join(Task.empty_ids)}")
+                return None
+            return Task.tasks
+
+        if Task.tasks:
+            container.info(f"현재 추가된 작업 ID: {', '.join(Task.tasks.keys())}")
+        if Task.empty_ids:
+            container.warning(f"아직 추가되지 않은 선행 작업 ID: {', '.join(Task.empty_ids)}")
+        return None
             
     #README에 적힌 예시데이터를 반환하는 매서드
     @staticmethod
