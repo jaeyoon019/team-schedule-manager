@@ -46,6 +46,7 @@ def restore_durations(tasks, deadline: date, durations: dict[str, int]) -> dict[
 
 
 def propose_adjustment(tasks, deadline: date) -> dict:
+
     original_schedule = compute_schedule(tasks)
     original_finish = project_finish(original_schedule)
     original_over = days_over(original_finish, deadline)
