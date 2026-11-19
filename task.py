@@ -2,11 +2,6 @@ import datetime
 from dataclasses import dataclass
 import streamlit as st
 
-#Streamlit 재실행 시에도 초기화되지 않도록 session_state에 리스트 생성
-st.session_state.task_ids = set()
-st.session_state.tasks_empty_ids = set()
-st.session_state.tasks = {}
-
 #작업 각각의 정보를 담는 데이터 클래스
 @dataclass
 class Task:
@@ -20,29 +15,18 @@ class Task:
     status:str="시작 전"             #"시작 전"/"진행 중"/"완료"(이 세개의 값만 가질 수 있음)
     delay:int=0                     #원래보다 더 걸리는 일수(기본적으로 0)
 
-    ids = st.session_state.task_ids    #전체 작업 ID 목록
-    empty_ids = st.session_state.tasks_empty_ids  #선행 작업이 없는 작업 ID 목록
-    tasks = st.session_state.tasks  #전체 작업 객체 목록, {작업ID: Task객체}
-
     #객체 생성시 바로 실행
     def __post_init__(self):
         #Task 객체 생성 후 자동으로 입력 검증
         if not self.validate_task():
             raise ValueError("유효하지 않은 task입니다")
-        #Task 객체 생성 후 자동으로 전체 작업 ID 목록에 추가
-        if self.id not in Task.ids:
-            Task.ids.add(self.id)
-        
 
     #Task 객체 입력 검증
     def validate_task(self):
         #Id, name이 비어있으면 False
         if not self.id or not self.name:
             return False
-        #id중복 시 덮어씌우는 형태, 아래의 주석은 현재로써는 무시
-        #이미 있는 id이면 False
-        #if self.id in Task.ids:
-        #    return False
+        #같은 id로 다시 추가하면 덮어쓴다 (중복 검사는 Task가 아니라 입력 폼·app.py가 맡는다)
         #duration, min_duration, delay가 음수이면 False
         if self.duration < 0 or self.min_duration < 0 or self.delay < 0:
             return False
@@ -57,19 +41,6 @@ class Task:
             return False
         if not isinstance(self.preds, list):
             return False
-        #preds(선행 작업 id들 목록)에 ids(전체 작업 id 목록)에 없으면 empty_ids(선행 작업이 없는 작업 id 목록)에 추가
-        if self.ids is not None and self.empty_ids is not None:
-            for pred in self.preds:
-                if pred not in Task.ids:
-                    Task.ids.add(pred)
-                    Task.empty_ids.add(pred)
-            if self.id in Task.empty_ids:
-                Task.empty_ids.remove(self.id)
-                Task.ids.add(self.id)
-            all_preds = [pred for task_id, task in Task.tasks.items() if task_id != self.id for pred in task.preds] + self.preds
-            for pred in list(Task.empty_ids):
-                if pred not in all_preds:
-                    Task.empty_ids.remove(pred)
         return True
 
 
@@ -81,6 +52,8 @@ class Task:
         #입력이 끝나면 검증, 검증에 실패하면 None을 반환
         
         container = st_container if st_container is not None else st
+        #입력한 작업 목록은 세션(브라우저 탭)마다 따로 둔다. {작업ID: Task객체}
+        tasks = st.session_state.setdefault("input_tasks", {})
 
         #작업 입력 폼
         with container.form("input_form"):
@@ -105,7 +78,7 @@ class Task:
 
             temp_preds = [p.strip() for p in temp_preds_str if p.strip()]  # 공백 제거 및 빈 문자열 제거
 
-        #'작업 추가'버튼을 눌렀을 때 검증 후 Task 객체 생성 및 Task.tasks에 추가
+        #'작업 추가'버튼을 눌렀을 때 검증 후 Task 객체 생성 및 tasks에 추가
         if submitted:
             try:
                 new_task = Task(
@@ -118,11 +91,8 @@ class Task:
                     status=temp_status,
                     delay=int(temp_delay)
                 )
-                if not new_task.validate_task():
-                    raise ValueError("유효하지 않은 task입니다")
-        
                 container.success(f"작업 '{new_task.id} ({new_task.name})'이(가) 추가되었습니다.")
-                Task.tasks.update({new_task.id: new_task})
+                tasks.update({new_task.id: new_task})
 
             except ValueError as e:
                 container.error(str(e))
@@ -130,29 +100,32 @@ class Task:
 
         if example:
             example_tasks = Task.get_task_example()
-            Task.tasks.update(example_tasks)
+            tasks.update(example_tasks)
             container.success("예시 데이터가 추가되었습니다.")
             return None
 
         if reset:
-            Task.tasks = {}
+            tasks.clear()
             container.success("작업이 초기화 되었습니다.")
             return None
 
+        #선행 작업으로 입력됐지만 아직 추가되지 않은 작업 ID (저장하지 않고 매번 계산)
+        missing = sorted({pred for task in tasks.values() for pred in task.preds} - tasks.keys())
+
         #'작업 입력 완료' 버튼을 눌렀을 때 검증 후 전체 작업 딕셔너리 반환
         if completed:
-            if not Task.tasks:
+            if not tasks:
                 container.error("작업을 한 개 이상 추가해 주세요.")
                 return None
-            if Task.empty_ids:
-                container.error(f"선행 작업으로 입력되었으나 아직 추가되지 않은 작업이 있습니다: {', '.join(Task.empty_ids)}")
+            if missing:
+                container.error(f"선행 작업으로 입력되었으나 아직 추가되지 않은 작업이 있습니다: {', '.join(missing)}")
                 return None
-            return Task.tasks
+            return tasks
 
-        if Task.tasks:
-            container.info(f"현재 추가된 작업 ID: {', '.join(Task.tasks.keys())}")
-        if Task.empty_ids:
-            container.warning(f"아직 추가되지 않은 선행 작업 ID: {', '.join(Task.empty_ids)}")
+        if tasks:
+            container.info(f"현재 추가된 작업 ID: {', '.join(tasks.keys())}")
+        if missing:
+            container.warning(f"아직 추가되지 않은 선행 작업 ID: {', '.join(missing)}")
         return None
             
     #README에 적힌 예시데이터를 반환하는 매서드
