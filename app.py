@@ -6,7 +6,7 @@ import streamlit as st
 
 from task import Task
 from schedule import CycleError, compute_schedule, days_over, project_finish
-from adjust import propose_adjustment
+from adjust import propose_adjustment, validate_completed_dependencies
 from evaluate import (
     evaluate_plan,
     make_gantt,
@@ -102,6 +102,7 @@ def parse_tasks(edited_rows: pd.DataFrame) -> dict[str, Task]:
         for pred in task.preds:
             if pred not in tasks:
                 raise ValueError(f"{tid} 작업의 선행 작업 '{pred}'이(가) 목록에 없습니다.")
+    validate_completed_dependencies(tasks)
     return tasks
 
 
@@ -152,7 +153,29 @@ def parse_direct_rows(rows: pd.DataFrame, tasks: dict) -> tuple[dict, dict]:
     return starts, durations
 
 
+def tasks_with_updated_delays(tasks: dict[str, Task], edited_delay: pd.DataFrame) -> dict[str, Task]:
+    editable = {tid for tid, task in tasks.items() if task.status != "완료"}
+    changes = {}
+    for row_index, row in enumerate(edited_delay.to_dict("records"), start=1):
+        tid = required_text(row.get("작업 ID"), "작업 ID", row_index)
+        if tid not in tasks:
+            raise ValueError(f"{row_index}행: 존재하지 않는 작업 ID '{tid}'입니다.")
+        if tid not in editable:
+            raise ValueError(f"완료 작업 '{tid}'의 기존 지연은 변경할 수 없습니다.")
+        if tid in changes:
+            raise ValueError(f"{row_index}행: 작업 ID '{tid}'가 중복됐습니다.")
+        changes[tid] = nonnegative_int(row.get("추가 지연(일)"), "추가 지연(일)", row_index)
+    missing = editable - changes.keys()
+    if missing:
+        raise ValueError(f"지연 입력이 누락된 작업이 있습니다: {', '.join(sorted(missing))}")
+    return {
+        tid: replace(task, delay=changes.get(tid, task.delay))
+        for tid, task in tasks.items()
+    }
+
+
 def applied_tasks_for_schedule(tasks: dict, schedule: dict, durations: dict) -> dict:
+    validate_completed_dependencies(tasks)
     applied = {}
     for tid, task in tasks.items():
         if task.status == "완료":
@@ -400,29 +423,37 @@ def main() -> None:
 
     st.subheader("4. 지연 입력 및 재계산")
     previous = st.session_state.get("delayed_tasks") or tasks
-    delay_rows = pd.DataFrame([
-        {"작업 ID": tid, "작업 이름": task.name, "추가 지연(일)": previous[tid].delay}
-        for tid, task in tasks.items()
-    ])
-    with st.form("delay_form"):
-        edited_delay = st.data_editor(
-            delay_rows,
-            key=f"delay_editor_{st.session_state.version}",
-            hide_index=True,
-            width="stretch",
-            disabled=["작업 ID", "작업 이름"],
-            column_config={
-                "추가 지연(일)": st.column_config.NumberColumn("추가 지연(일)", min_value=0, step=1, required=True)
-            },
+    editable_ids = [tid for tid, task in tasks.items() if task.status != "완료"]
+    completed_ids = [tid for tid, task in tasks.items() if task.status == "완료"]
+    if completed_ids:
+        st.caption(
+            "완료 작업은 이미 발생한 지연을 유지하며 수정할 수 없습니다: "
+            + ", ".join(f"{tid}({tasks[tid].delay}일)" for tid in completed_ids)
         )
-        submit_delay = st.form_submit_button("지연 반영 재계산", type="primary")
+    submit_delay = False
+    if editable_ids:
+        delay_rows = pd.DataFrame([
+            {"작업 ID": tid, "작업 이름": tasks[tid].name, "추가 지연(일)": previous[tid].delay}
+            for tid in editable_ids
+        ])
+        with st.form("delay_form"):
+            edited_delay = st.data_editor(
+                delay_rows,
+                key=f"delay_editor_{st.session_state.version}",
+                hide_index=True,
+                width="stretch",
+                disabled=["작업 ID", "작업 이름"],
+                column_config={
+                    "추가 지연(일)": st.column_config.NumberColumn("추가 지연(일)", min_value=0, step=1, required=True)
+                },
+            )
+            submit_delay = st.form_submit_button("지연 반영 재계산", type="primary")
+    else:
+        st.info("모든 작업이 완료되어 지연을 수정할 수 없습니다.")
+
     if submit_delay:
         try:
-            delays = {
-                row["작업 ID"]: nonnegative_int(row["추가 지연(일)"], "추가 지연(일)", i)
-                for i, row in enumerate(edited_delay.to_dict("records"), start=1)
-            }
-            delayed_tasks = {tid: replace(task, delay=delays[tid]) for tid, task in tasks.items()}
+            delayed_tasks = tasks_with_updated_delays(tasks, edited_delay)
             delayed_schedule = compute_schedule(delayed_tasks)
         except (ValueError, TypeError, KeyError, OverflowError, CycleError) as exc:
             st.error(f"지연 정보를 확인해 주세요: {exc}")
