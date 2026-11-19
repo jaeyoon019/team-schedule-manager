@@ -43,61 +43,17 @@ streamlit run app.py
 
 > Colab은 쓰지 않는다. Streamlit은 웹 서버를 띄우는 방식이라 Colab에서는 따로 우회 설정을 해야 한다.
 
-## app.py 구현 현황 (2026-11-08)
+## 파일 구성
 
-**담당: 장지우**
-
-### 구현 기능
-
-- Streamlit 기반 프로그램 기본 화면 구성
-- 프로젝트 마감일 및 작업 정보 입력
-- `schedule.py`를 이용한 기본 일정 계산
-- 작업별 시작일·완료일 결과 표 출력
-- Plotly 간트 차트 출력
-- 작업별 지연 일수 입력 및 일정 재계산
-- 기본 일정과 지연 후 일정 비교
-- 작업 정보 입력 오류 및 선행 관계 오류 검사
-
-### 현재 구조
-
-- `task.py`: Task 데이터 및 예시 데이터 활용
-- `schedule.py`: 일정 계산 및 마감 판정
-- `evaluate.py`: 결과 표와 간트 차트 생성
-- `app.py`: 입력 화면과 기능 연결
-
-현재 `task.py`의 입력 폼이 미완성이라 `app.py`에 임시 입력 화면을 구성했다. 추후 담당자의 입력 폼과 통합할 예정이다.
-
-### 추후 구현 및 연결
-
-- `adjust.py` 자동 조정 알고리즘 연결
-- 자동 조정안 적용 / 직접 입력 / 종료 화면 흐름 구현
-- `evaluate_plan()` 직접 입력 평가 기능 연결
-- 팀원별 코드 통합 및 전체 기능 테스트
-
-※ 현재 버전은 화면 뼈대이며 최종 완성본이 아니다.
-
-### 2026-11-10 수정 및 추가 구현 (장지우)
-
-**app.py 수정**
-- 지연 결과 표의 실제 소요 기간을 `duration + delay`로 계산하도록 수정
-- 설정 기간, 추가 지연, 실제 소요 기간을 각각 구분하여 표시
-- `use_container_width=True` 5곳을 `width="stretch"`로 변경하여 Streamlit 폐기 경고 해결
-
-**adjust.py 초안 구현**
-- `make_min_durations()`: 완료 작업을 제외한 나머지 작업을 최소 기간으로 설정
-- `restore_durations()`: 마감 범위 내에서 작업 기간을 입력 순서대로 1일씩 복원
-- `propose_adjustment()`: 자동 조정 전체 과정 실행 및 결과 반환
-- 완료 작업의 기존 일정과 모든 작업의 `delay` 유지
-- 조정 중 선행 작업이 일찍 끝나면 후속 작업도 앞당겨 시작할 수 있도록 처리
-- 최소 기간으로도 마감을 초과하면 `possible=False` 반환
-- 조정 불가능한 경우에도 최소 기간 기준 `durations`, `schedule`, `finish`, `over` 반환
-- 원본 Task 객체는 수정하지 않음
-
-**남은 작업**
-- app.py에 adjust.py 자동 조정 기능 연결
-- 자동 조정안 적용 / 직접 입력 / 종료 화면 구현
-- evaluate.py 직접 입력 평가 화면 연결
-- 전체 통합 테스트
+| 파일 | 내용 |
+|---|---|
+| `app.py` | Streamlit 화면. 작업 입력 → 기본 일정 → 지연 재계산 → 자동 조정 / 직접 입력 → 적용·종료 |
+| `task.py` | `Task` 클래스, 작업 입력 폼, 입력 검증, 예시 데이터 |
+| `schedule.py` | 선행 순서 정렬·순환 검사, 시작일·완료일 계산, 마감 판정 |
+| `adjust.py` | 자동 조정안 생성 (최소 기간으로 줄인 뒤 1일씩 되돌리기) |
+| `evaluate.py` | 직접 입력 일정 평가, 결과 표, Plotly 간트 차트 |
+| `test_schedule.py` | `schedule.py` 테스트 (`python test_schedule.py`) |
+| `test_team_schedule.py` | 팀 일정 시나리오 테스트 (`python test_team_schedule.py`) |
 
 ## 공통 약속(확정)
 
@@ -118,11 +74,11 @@ streamlit run app.py
 | `status`        | `str`       | `"시작 전"` / `"진행 중"` / `"완료"`     |
 | `delay`         | `int`       | 원래보다 더 걸리는 일수, 기본 0 (아래 정한 기준 1) |
 
-| 매서드              | 매개 변수     | return           | 뜻                                |
-| ------------------ | ------------ |----------------- | -------------------------------- |
-| `input_task`       | `매개변수`    |`Task, None`      | 작업 정보를 입력받는 폼                   |
-| `validate_task`    | `self`       |`boolean`         | 객체 입력 검증                          |
-| `get_task_example` | `void`       |`dict[str, Task]` | README에 적힌 예시데이터 반환            |
+| 메서드              | 매개변수              | 반환                         | 뜻                                |
+| ------------------ | -------------------- | --------------------------- | -------------------------------- |
+| `input_task`       | `st_container=None`  | `dict[str, Task]` 또는 `None` | 작업 정보를 입력받는 폼. `작업 입력 완료`를 누르면 작업 묶음을 반환 |
+| `validate_task`    | `self`               | `bool`                      | 객체 입력 검증                          |
+| `get_task_example` | 없음                  | `dict[str, Task]`           | README에 적힌 예시데이터 반환            |
 
 -Task 객체 생성시 주의점: Task 객체를 만들 때 input_task를 포함하여 Task.input_task()와 같이 선언해야 입력 폼으로 넘어감
 
@@ -215,6 +171,11 @@ def propose_adjustment(tasks, deadline) -> dict:
     # finish: 전체 프로젝트 완료일
     # over: 마감 대비 초과 일수. 0 이하면 통과
     # 순환 선행 관계면 CycleError 발생. app.py가 처리
+    # '완료' 작업의 선행이 미완료면 ValueError (validate_completed_dependencies)
+
+def validate_completed_dependencies(tasks) -> None:
+    # '완료' 작업의 선행 작업이 모두 '완료'인지 검사. 아니면 ValueError
+    # app.py의 parse_tasks·applied_tasks_for_schedule와 propose_adjustment가 부른다
 ```
 
 **내부 보조 함수**
@@ -299,9 +260,9 @@ def restore_durations(tasks, deadline, durations) -> dict[str, int]:
 |                     |         | 각자         | 검토 내용 수정 (나머지)                                                                        | ✅ 11/19                                              |
 | 11/18(수)~19(목)      | 최종 제출물  | jaeyoon019 | 요약 보고서(A4 2장, 팀원별 기여도, 데이터 출처·참고 문헌, 생성형 AI 사용 출처)                                    |                                                      |
 |                     |         | 미정         | PPT(연동 URL 포함), 소스 zip, 시연 영상(선택)                                                     |                                                      |
-| 11/20(금) 23:59      | 최종 제출   | jaeyoon019 | 예비일. 팀장이 이러닝에 1명 대표 제출                                                                |                                                      |
-| 11/21(토)~23(월) 중 하루 | 리허설(선택) | 전원         | 15분에 맞춰 시연 포함 리허설                                                                     |                                                      |
-| 11/24(화) 수업         | 발표      | 발표자(미정)    | 조별 15분                                                                                |                                                      |
+| 11/20(금) 23:59      | 최종 제출   | jaeyoon019 | 예비일. 팀장이 채널에 1명 대표 업로드 (추가 파일은 ~11/26 예정)                                            |                                                      |
+| 발표 전 하루          | 리허설(선택) | 전원         | 15분에 맞춰 시연 포함 리허설. 각자 맡은 코드 설명 준비 (질의응답 4점)                                     |                                                      |
+| 12/1(화) 또는 12/8(화) 수업 | 발표      | 발표자(미정)    | 조별 15분. 우리 조 날짜 미정 (11/19 변경 공지)                                                      |                                                      |
 
 - 점검일: 11/8(화면 뼈대)·11/9(중간 구현). 이날까지 된 것으로 다음 단계를 진행한다
 - 11/8 `app.py` 뼈대가 안 되어 있으면, 중간 보고서 시연을 `test_schedule.py`·`test_team_schedule.py`·`evaluate.py` 결과로 대체한다
