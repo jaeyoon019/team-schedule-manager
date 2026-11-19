@@ -3,6 +3,20 @@ from datetime import date
 from schedule import compute_schedule, days_over, project_finish
 
 
+def validate_completed_dependencies(tasks) -> None:
+    for tid, task in tasks.items():
+        if task.status != "완료":
+            continue
+        for pred in task.preds:
+            if pred not in tasks:
+                raise ValueError(f"완료 작업 '{tid}'의 선행 작업 '{pred}'이(가) 존재하지 않습니다.")
+            if tasks[pred].status != "완료":
+                raise ValueError(
+                    f"완료 작업 '{tid}'의 선행 작업 '{pred}'이(가) 아직 완료되지 않았습니다. "
+                    "작업 상태를 확인해 주세요."
+                )
+
+
 def make_min_durations(tasks) -> dict[str, int]:
     return {
         tid: task.duration if task.status == "완료" else task.min_duration
@@ -46,7 +60,7 @@ def restore_durations(tasks, deadline: date, durations: dict[str, int]) -> dict[
 
 
 def propose_adjustment(tasks, deadline: date) -> dict:
-
+    validate_completed_dependencies(tasks)
     original_schedule = compute_schedule(tasks)
     original_finish = project_finish(original_schedule)
     original_over = days_over(original_finish, deadline)
