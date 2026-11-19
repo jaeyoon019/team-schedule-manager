@@ -36,7 +36,7 @@ def topo_sort(tasks):
     # (순환 안의 작업과, 그 순환에 막혀 뒤에 있는 작업이 함께 남는다)
     if len(tasks) != len(order):
         problems = [tid for tid in tasks if tid not in order]
-        raise CycleError(f"순환이 있거나 그 뒤에 있는 작업: {", ".join(problems)}")
+        raise CycleError(f"순환이 있거나 그 뒤에 있는 작업: {', '.join(problems)}")
     return order
 
 def compute_schedule(tasks, durations = None, starts = None):
